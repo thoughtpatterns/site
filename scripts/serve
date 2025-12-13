@@ -1,0 +1,4 @@
+#!/usr/bin/env nu
+
+const htmld = path self | path join '../../src/html' | path expand
+python -m 'http.server' --bind 'localhost' --directory $htmld '8080'

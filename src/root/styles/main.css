@@ -1,0 +1,127 @@
+:root {
+  --background1: #262626;
+  --background2: #333333;
+  --foreground1: #dddddd;
+  --foreground2: #cccccc;
+  --foreground3: #bbbbbb;
+  --new-link: #add4fb;
+  --old-link: #ffafaf;
+}
+
+body {
+  background-color: var(--background1);
+  color: var(--foreground1);
+  font-family: Helvetica, sans-serif;
+  font-size-adjust: ex-height 0.55;
+  line-height: 1.5;
+  margin: auto;
+  max-width: 640px;
+  padding: 24px 24px 0;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a:link {
+  color: var(--new-link);
+}
+
+a:visited {
+  color: var(--old-link);
+}
+
+nav {
+  align-items: center;
+  display: flex;
+  gap: 2.25em;
+  justify-content: center;
+  padding-bottom: 2rem;
+}
+
+nav > a {
+  font-size: 1.1rem;
+}
+
+nav > #current {
+  color: var(--foreground1);
+  transform: scale(1.375);
+}
+
+nav ~ :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+p:has(+ :is(ul, ol)) {
+  margin-bottom: 0.5rem;
+}
+
+p + :is(ul, ol) {
+  margin-top: 0.5rem;
+}
+
+ol, ul {
+  padding-left: 1rem;
+}
+
+ul {
+  list-style-type: "* ";
+}
+
+aside, pre > code {
+  background-color: var(--background2);
+  display: block;
+  margin: 0 auto;
+  padding: 0.5rem;
+  max-width: 92.5%;
+}
+
+pre > code {
+  overflow: scroll;
+}
+
+div.inline-math > svg.typst-frame {
+  display: inline-block;
+}
+
+div.display-math > svg.typst-frame {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+:is(#title, #feed > div.post) > :is(h2, h3) {
+  display: inline;
+  padding-right: 0.25rem;
+}
+
+:is(#title, #feed > div.post) > p {
+  display: inline;
+  margin: 0;
+}
+
+:is(#title, #feed > div.post) > p > span.date {
+  color: var(--foreground3);
+  font-style: italic;
+}
+
+#feed {
+  padding-top: 1rem;
+}
+
+#feed > div.post {
+  padding-bottom: 1rem;
+}
+
+#footer {
+  color: var(--foreground3);
+  font-size: 0.9rem;
+  font-style: italic;
+  padding-top: 1.5rem;
+  text-align: end;
+}

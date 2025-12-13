@@ -1,0 +1,317 @@
+#!/usr/bin/env nu
+
+use std/assert
+
+const http = 'https://makki.moe'
+
+const rootd = path self | path join '../../src/root' | path expand
+const maked = $rootd | path join '.make' | path expand
+const htmld = $rootd | path join '../html' | path expand
+const postd = $rootd | path join 'posts'
+
+def datew []: datetime -> string {
+    (
+        '#html.span(class: "date")['
+        + ($in | format date "%A, %B %-d, %Y" | str downcase)
+        + ']'
+    )
+}
+
+# Extract metadata for each Typst file in a path.
+def globw [path: path]: nothing -> table<path, title, date> {
+    def f []: path -> record<path, title, date> {
+        let regex = (
+            ('#set\s+document')
+            + (' \( title : (?<title>.*?)')
+            + (' , date : datetime \( year : (?<year>\d+)')
+            + (' , month : (?<month>\d+)')
+            + (' , day : (?<day>\d+) \) \)')
+        ) | str replace --all ' ' '\s*'
+
+        let result = open --raw $in | parse --regex $regex
+        assert (not ($result | is-empty)) (
+            ($'(ansi red_bold)fatal(ansi reset)' + ": failed to parse title and date at '" + $in + "'" + "\n")
+            + ($' (ansi blue)=(ansi reset)' + " hint: add a " + $'(ansi yellow_bold)single-line(ansi reset)' + " '#set document' declaration with only 'title' and 'date' attributes" + "\n")
+            + ($' (ansi blue)=(ansi reset)' + " hint: to 'date', supply an argument of form 'datetime(year: YEAR, month: MONTH, day: DAY)'" + "\n")
+        )
+
+        let result = $result | last
+        let date = $'($result.year)-($result.month)-($result.day)' | into datetime
+
+        {path: $in, title: $result.title, date: $date}
+    }
+
+    glob --no-dir $'($path)/*.typ' | par-each --keep-order {f}
+}
+
+def mkdirw [path: path]: nothing -> record<pages, posts, assets, feed> {
+    mkdir $path
+    chmod 755 $path
+}
+
+# Assemble the header, navigation bar, and footer, per page, and gather
+# posts into a string feed.
+def readw [release: bool]: nothing -> record<pages, posts, assets, feed> {
+    let extension = if $release {''} else {'.html'}
+    def f []: path -> path { str replace --regex '.typ$' $extension }
+
+    let assets = (
+        glob --no-dir --exclude [$'**/($maked | path basename)/**'] $'($rootd)/**'
+        | where {find --regex '\.typ$' | is-empty}
+    )
+
+    const index = $rootd | path join 'index.typ'
+    let pages = globw $rootd | sort-by {$in.title} | sort-by {$in.path != $index}
+    let posts = globw $postd
+
+    def g []: record<path, title, date> -> string {
+        let path = $in.path | path relative-to $rootd | f
+        (
+            ('#html.div(class: "post")[' + "\n")
+            + ('  #html.h3[#html.a(href: "/' + $path + '")[#{' + $in.title + '}]]' + "\n")
+            + ('  ' + ($in.date | datew) + ']' + "\n")
+        )
+    }
+
+    def h []: string -> string { '#html.div(id: "feed")[' + $in + ']' + "\n" }
+
+    let feed = match ($posts | length) {
+        0 => ''
+        1 => ($posts | first | g | h)
+        _ => (
+            $posts
+            | sort-by --reverse date
+            | each {g}
+            | str join "\n"
+            | str trim
+            | h
+        )
+    }
+
+    let header = $pages | each {
+        def pathw []: path -> string { path relative-to $rootd | f }
+
+        let path = $in.path
+        let link = if $path == $index {''} else {$path | pathw}
+
+        {prefix: ('#html.a(href: "/' + $link + '"'), suffix: (')[#{' + $in.title + '}]')}
+    }
+
+    let pages = $pages | enumerate | each {
+        let n = $in.index
+        let record = $in.item
+
+        let link = $header | get $n | values | str join ', id: "current"'
+        let header = $header | enumerate | each {
+            if $in.index == $n {$link} else {$in.item | values | str join}
+        }
+
+        $record | merge {header: (
+            $header
+            | prepend '#html.nav['
+            | append ']'
+            | str join "\n"
+        )}
+    }
+
+    def i []: record<path, title, date, header> -> string {
+        const make = 'https://github.com/thoughtpatterns/site/blob/main/scripts/make'
+        (
+            ('#html.div(id: "footer")[' + "\n")
+            + ('built with #html.a(href: "' + $make + '")[nushell]!' + '#html.br()')
+            + ('page last updated ' + ($in.date | datew) + '.]' + "\n")
+        )
+    }
+
+    let pages = $pages | upsert footer {|row|
+        (if $row.path == $index {$feed} else {''}) + ($row | i)
+    }
+
+    let header = $header | each {$in.prefix + $in.suffix} | str join "\n"
+    let header = '#html.nav[' + $header + ']'
+
+    def j []: record<path, title, date> -> string {
+        (
+            ('#html.div(id: "title")[' + "\n")
+            + ('  #html.h2[' + ($in.title | titlew) + ']' + "\n")
+            + ('  ' + ($in.date | datew) + ']' + "\n")
+        )
+    }
+
+    let posts = (
+        $posts
+        | upsert header {|row| $header + ($row | j)}
+        | upsert footer {|row| $row | i}
+    )
+
+    {pages: $pages, posts: $posts, assets: $assets, feed: $feed}
+}
+
+def rssw [posts: table<path, title, date, html>] {
+    # If the template logic of `savew` is updated, this function's heuristic
+    # for the content body must also be updated.
+    def f []: string -> string {
+        $in
+        | parse --regex '(?s).*?</div>\s*(?<body>.*?)\s*<div id="footer">'
+        | get body
+        | first
+        | xmlstarlet esc
+    }
+
+    def g []: path -> string {
+        let path = $in | path relative-to $rootd | str replace --regex '.typ$' ''
+        $http | path join $path
+    }
+
+    def h []: datetime -> string { format date "%a, %d %b %Y %H:%M:%S %z" }
+
+    def i []: record<path, title, date, html> -> string {
+        let link = $in.path | g
+
+        (
+            ('    <item>' + "\n")
+            + ('      <title>' + $in.title + '</title>' + "\n")
+            + ('      <link>' + $link + '</link>' + "\n")
+            + ('      <guid>' + $link + '</guid>' + "\n")
+            + ('      <description>' + ($in.html | f) + '</description>' + "\n")
+            + ('      <pubDate>' + ($in.date | h) + '</pubDate>' + "\n")
+            + ('    </item>' + "\n")
+        )
+    }
+
+    const path = 'feeds/rss.xml'
+    const link = $http | path join $path
+
+    let rss = (
+        ('<?xml version="1.0" encoding="utf-8"?>' + "\n")
+        + ('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">' + "\n")
+        + ('  <channel>' + "\n")
+        + ('    <title>' + $http + '</title>' + "\n")
+        + ('    <link>' + $link + '</link>' + "\n")
+        + ('    <description>0.0001% of the web has been built</description>' + "\n")
+        + ('    <atom:link href="' + $link + '" rel="self" type="application/rss+xml"/>' + "\n")
+        + ('    <language>en</language>' + "\n")
+        + ('    <lastBuildDate>' + (date now | h) + '</lastBuildDate>' + "\n")
+        + ($in | par-each --keep-order {i} | str join)
+        + ('  </channel>' + "\n")
+        + ('</rss>')
+    )
+
+    let out = $htmld | path join $path
+    mkdirw ($out | path dirname)
+    $rss | save --raw $out
+}
+
+# Compile Typst to HTML, save it to disk, and add an HTML column to the input.
+def savew []: table<path, title, date, header, footer> -> table<path, title, date, html> {
+    def f []: record<path, title, date, header, footer> -> record<title, html> {
+        let title = $in.title | titlew
+
+        const makedr = '/' + ($maked | path basename)
+        const stylesdr = '/styles'
+
+        const static = (
+            ('#set raw(theme: "' + ($makedr | path join 'tomorrow-night.tmTheme') + '")' + "\n")
+            + ('#show math.equation: it => {' + "\n")
+            + (  'set text(font: "Fira Math")' + "\n")
+            + (  'html.frame[#it] }' + "\n")
+            + ('#show math.equation.where(block: false): it => html.span(class: "inline-math")[#it]' + "\n")
+            + ('#show math.equation.where(block: true): it => html.div(class: "display-math")[#it]' + "\n")
+            + ('#html.link(href: "' + ($stylesdr | path join 'main.css') + '", rel: "stylesheet")' + "\n")
+        )
+
+        let record = $in
+        let html = (
+            open --raw $record.path
+            | prepend $record.header
+            | prepend $static
+            | append $record.footer
+            | str join "\n"
+            | typstw
+            | get stdout
+            | awk r#'
+                /<svg class="typst-frame"/, index($0, "</svg>") {
+                    gsub(/fill="#000000"/, "fill='currentColor'")
+                } { print }
+            '#
+        )
+
+
+        {title: $title, html: $html}
+    }
+
+    def g []: record<path, title, date, header, footer> -> record<path, title, date, html> {
+        let record = $in
+
+        let out = (
+            $in.path
+            | path basename
+            | str replace --regex '.typ$' '.html'
+        )
+
+        let out = (
+            $htmld
+            | path join ($record.path | path relative-to $rootd)
+            | path split
+            | skip
+            | prepend ''
+            | drop
+            | append $out
+            | str join '/'
+        )
+
+        mkdirw ($out | path dirname)
+        let result = $record | f | tee {$in.html | save --raw $out}
+        {path: $in.path, title: $result.title, date: $in.date, html: $result.html}
+    }
+
+    $in | par-each --keep-order {g}
+}
+
+# TODO: currently, we calculate the title twice per post:
+#   (1) for header titles, at the top of their respective page,
+#   (2) and for RSS.
+# It would be best to save this calculation in `globw`.
+def titlew []: string -> string {
+    ('#{' + $in + '}')
+    | typstw
+    | get stdout
+    | parse --regex '<p>(?<title>.*?)</p>'
+    | get title
+    | first
+}
+
+# TODO: errors via `tee` cannot capture the input filename.
+def typstw []: string -> record<stdout, stderr, exit_code> {
+    typst --color always compile --font-path $maked --root $rootd --format html - -
+    | complete
+    | tee {
+        const stderr = ( # Unconditional error output from Typst (subject to change).
+            ("\e[0m\e[1m\e[38;5;11mwarning\e[0m\e[1m: html export is under active development and incomplete\e[0m" + "\n")
+            + (" \e[0m\e[34m=\e[0m hint: its behaviour may change at any time" + "\n")
+            + (" \e[0m\e[34m=\e[0m hint: do not rely on this feature for production use cases" + "\n")
+            + (" \e[0m\e[34m=\e[0m hint: see https://github.com/typst/typst/issues/5512 for more information" + "\n" + "\n")
+        )
+
+        $in.stderr | str replace $stderr '' | print --no-newline
+    }
+}
+
+# If `$release`, build RSS and use clean links.
+# Else, use "dirty" links (with '.html' extensions).
+def main [--release] {
+    glob $'($htmld)/*' | each {rm --recursive --force $in}
+
+    let result = readw $release
+    let posts = [$result.pages, $result.posts] | each {savew} | last
+
+    # We need the reverse order to that of the feed on the homepage for `rssw`.
+    let _ = if $release { $posts | reverse | rssw $in }
+
+    let _ = $result.assets | par-each --keep-order {
+        let out = path relative-to $rootd
+        let out = $htmld | path join $out
+        mkdirw ($out | path dirname)
+        cp $in $out
+    }
+}

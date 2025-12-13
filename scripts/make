@@ -186,7 +186,7 @@ def rssw [posts: table<path, title, date, html>] {
         ('<?xml version="1.0" encoding="utf-8"?>' + "\n")
         + ('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">' + "\n")
         + ('  <channel>' + "\n")
-        + ('    <title>' + $http + '</title>' + "\n")
+        + ('    <title>' + ($http | str replace 'https://' '') + '</title>' + "\n")
         + ('    <link>' + $link + '</link>' + "\n")
         + ('    <description>0.0001% of the web has been built</description>' + "\n")
         + ('    <atom:link href="' + $link + '" rel="self" type="application/rss+xml"/>' + "\n")

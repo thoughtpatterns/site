@@ -82,7 +82,7 @@
 
   #html.div(class: "shring")[
     #html.a(href: "https://shring.sh/mackeye/previous")[#sym.arrow.l]
-    #html.a(href: "https://shring.sh/")[shring]
+    #html.a(href: "https://shring.sh")[shring]
     #html.a(href: "https://shring.sh/mackeye/next")[#sym.arrow.r]
   ]
 ]

@@ -208,7 +208,8 @@ def savew []: table<path, title, date, header, footer> -> table<path, title, dat
         let title = $in.title | titlew
 
         const makedr = '/' + ($maked | path basename)
-        const stylesdr = '/styles'
+        const styledr = '/styles'
+        const assetdr = '/assets'
 
         const static = (
             ('#set raw(theme: "' + ($makedr | path join 'tomorrow-night.tmTheme') + '")' + "\n")
@@ -217,7 +218,9 @@ def savew []: table<path, title, date, header, footer> -> table<path, title, dat
             + (  'html.frame[#it] }' + "\n")
             + ('#show math.equation.where(block: false): it => html.span(class: "inline-math")[#it]' + "\n")
             + ('#show math.equation.where(block: true): it => html.div(class: "display-math")[#it]' + "\n")
-            + ('#html.link(href: "' + ($stylesdr | path join 'main.css') + '", rel: "stylesheet")' + "\n")
+            + ('#html.link(rel: "stylesheet", href: "' + ($styledr | path join 'main.css') + '")' + "\n")
+            + ('#html.link(rel: "icon", type: "image/png", href: "/assets/favicon-96x96.png", sizes: ((96, 96),))' + "\n")
+
         )
 
         let record = $in
@@ -235,7 +238,6 @@ def savew []: table<path, title, date, header, footer> -> table<path, title, dat
                 } { print }
             '#
         )
-
 
         {title: $title, html: $html}
     }

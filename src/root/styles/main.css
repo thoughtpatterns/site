@@ -4,8 +4,7 @@
   --foreground1: #dddddd;
   --foreground2: #cccccc;
   --foreground3: #bbbbbb;
-  --new-link: #add4fb;
-  --old-link: #ffafaf;
+  --link: #ffafaf;
 }
 
 body {
@@ -21,18 +20,11 @@ body {
 
 a {
   text-decoration: none;
+  color: var(--link);
 }
 
 a:hover {
   text-decoration: underline;
-}
-
-a:link {
-  color: var(--new-link);
-}
-
-a:visited {
-  color: var(--old-link);
 }
 
 nav {

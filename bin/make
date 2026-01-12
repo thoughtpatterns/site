@@ -115,7 +115,7 @@ def readw [release: bool]: nothing -> record<pages, posts, assets, feed> {
     }
 
     def i []: record<path, title, date, header> -> string {
-        const make = 'https://github.com/thoughtpatterns/site/blob/main/scripts/make'
+        const make = 'https://github.com/thoughtpatterns/site/blob/main/bin/make'
         (
             ('#html.div(id: "footer")[' + "\n")
             + ('built with #html.a(href: "' + $make + '")[nushell]!' + '#html.br()')
